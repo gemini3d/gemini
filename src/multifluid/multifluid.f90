@@ -107,7 +107,7 @@ end subroutine sweep2_allparams
 
 
 !> execute diffusion of energy and then source/loss terms for all equations
-subroutine source_loss_allparams(dt,t,cfg,ymd,UTsec,x,E1,Q,f107a,f107,nn,vn1,vn2,vn3, &
+subroutine source_loss_allparams(dt,t,cfg,ymd,UTsec,x,E1,E2,E3,Q,f107a,f107,nn,vn1,vn2,vn3, &
                                    Tn,first,ns,rhovs1,rhoes,vs1,vs2,vs3,Ts,iver,gavg,Tninf, &
                                    eprecip)
   real(wp), intent(in) :: dt,t
@@ -115,7 +115,7 @@ subroutine source_loss_allparams(dt,t,cfg,ymd,UTsec,x,E1,Q,f107a,f107,nn,vn1,vn2
   integer, dimension(3), intent(in) :: ymd
   real(wp), intent(in) :: UTsec
   class(curvmesh), intent(in) :: x
-  real(wp), dimension(-1:,-1:,-1:), intent(in) :: E1
+  real(wp), dimension(-1:,-1:,-1:), intent(in) :: E1, E2, E3
   real(wp), dimension(:,:,:,:), intent(in) :: Q
   real(wp), intent(in) :: f107a,f107
   real(wp), dimension(:,:,:,:), intent(in) :: nn
@@ -148,7 +148,7 @@ subroutine source_loss_allparams(dt,t,cfg,ymd,UTsec,x,E1,Q,f107a,f107,nn,vn1,vn2
   Qeprecip=0.0
   call impact_ionization(cfg,t,dt,x,ymd,UTsec,f107a,f107,Prprecip,Qeprecip,W0,PhiWmWm2,iver,ns,Ts,nn,Tn,first)   ! precipiting electrons
   call solar_ionization(t,x,ymd,UTsec,f107a,f107,Prprecip,Qeprecip,ns,nn,Tn,gavg,Tninf)     ! solar ionization source
-  call srcsEnergy(nn,vn1,vn2,vn3,Tn,ns,vs1,vs2,vs3,Ts,Pr,Lo)                     ! collisional interactions
+  call srcsEnergy(nn,vn1,vn2,vn3,Tn,ns,vs1,vs2,vs3,Ts,Pr,Lo,E2,E3,x,cfg)                     ! collisional interactions
   call energy_source_loss(dt,Pr,Lo,Qeprecip,rhoes,Ts,ns)                         ! source/loss numerical solution
   call cpu_time(tfin)
   !if (mpi_cfg%myid==0 .and. debug) then

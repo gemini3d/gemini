@@ -49,6 +49,7 @@ use potential_nompi, only: set_fields_test,velocities_nompi
 use geomagnetic, only: geog2geomag,ECEFspher2ENU
 use interpolation, only: interp3,interp2
 use calculus, only: grad3D2,grad3D3
+use gemini_work_def, only: gemini_work
 
 implicit none (type, external)
 private
@@ -72,29 +73,6 @@ public :: c_params, gemini_alloc, gemini_dealloc, init_precipinput_in, msisinit_
 
 
 real(wp), protected :: v2grid,v3grid
-
-!> type encapsulating internal arrays and parameters needed by gemini.  This is basically a catch-all for any data
-!    in a gemini instance that is needed to advance the solution that must be passed into numerical procedures BUt
-!    doesn't conform to simple array shapes.
-type gemini_work
-  real(wp), dimension(:,:,:), pointer :: Phiall=>null()    !! full-grid potential solution.  To store previous time step value
-  real(wp), dimension(:,:,:), pointer :: iver    !! integrated volume emission rate of aurora calculated by GLOW
-
-  !> Other variables used by the fluid solvers
-  real(wp), dimension(:,:,:,:), pointer :: vs1i
-  real(wp), dimension(:,:,:,:), pointer :: vs2i
-  real(wp), dimension(:,:,:,:), pointer :: vs3i
-  real(wp), dimension(:,:,:,:), pointer :: Q    ! artificial viscosity
-
-  !> Neutral information for top-level gemini program
-  type(neutral_info), pointer :: atmos
-
-  !> Inputdata objects that are needed for each subgrid
-  type(precipdata), pointer :: eprecip=>null()
-  type(efielddata), pointer :: efield=>null()
-  class(neutraldata), pointer :: atmosperturb=>null()   ! not associated by default and may never be associated
-end type gemini_work
-
 
 !> type for passing C-like parameters between program units
 type, bind(C) :: c_params
@@ -264,6 +242,10 @@ contains
     allocate(intvars%eprecip)
     allocate(intvars%efield)
     ! fields of intvars%atmos are allocated in neutral:neutral_info_alloc()
+
+    ! Here the user needs to allocate any custom variables they want to pass around and/or output
+    allocate(intvars%sigP(1:lx1,1:lx2,1:lx3))
+    allocate(intvars%sigH, mold=intvars%sigP)
   end function gemini_work_alloc
 
 
@@ -296,6 +278,9 @@ contains
     !call clear_dneu(intvars%atmosperturb)    ! requies mpi so omitted here?
 
     if (associated(intvars%Phiall)) deallocate(intvars%Phiall)
+
+    ! Here the user *must* deallocate their custom vars
+    deallocate(intvars%sigP,intvars%sigH)
 
     deallocate(intvars)
   end subroutine gemini_work_dealloc
@@ -1019,7 +1004,7 @@ contains
     call fluidvar_pointers(fluidvars,ns,vs1,vs2,vs3,Ts)
     call fluidauxvar_pointers(fluidauxvars,rhovs1,rhoes,rhov2,rhov3,B1,B2,B3,v1,v2,v3,rhom)
     call electrovar_pointers(electrovars,E1,E2,E3,J1,J2,J3,Phi)
-    call source_loss_allparams(dt,t,cfg,ymd,UTsec,x,E1,intvars%Q,f107a,f107,intvars%atmos%nn, &
+    call source_loss_allparams(dt,t,cfg,ymd,UTsec,x,E1,E2,E3,intvars%Q,f107a,f107,intvars%atmos%nn, &
                                      intvars%atmos%vn1,intvars%atmos%vn2,intvars%atmos%vn3, &
                                      intvars%atmos%Tn,first,ns,rhovs1,rhoes,vs1,vs2,vs3,Ts, &
                                      intvars%iver,gavg,Tninf,intvars%eprecip)

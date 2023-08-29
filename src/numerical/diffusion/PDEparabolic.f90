@@ -16,7 +16,7 @@ public :: TRBDF21D, backEuler1D
 contains
 
 
-function TRBDF21D(Ts,A,B,C,D,E,Tsminx1,Tsmaxx1,dt,dx1,dx1i)
+function TRBDF21D(Ts,A,B,C,D,E,Tsminx1,Tsmaxx1,dt,BCtype,dx1,dx1i)
 
 !! SOLVE A 1D DIFFUSION PROBLEM.  IT IS EXPECTED THAT
 !! GHOST CELLS WILL HAVE BEEN TRIMMED FROM ARRAYS BEFORE
@@ -27,10 +27,16 @@ function TRBDF21D(Ts,A,B,C,D,E,Tsminx1,Tsmaxx1,dt,dx1,dx1i)
 !!
 !!  NOTE: UPON FURTHER REVIEW I THINK THE FORM SOLVED IS ACTUALLY:
 !!  dT/dt = A T + B dT/dx + C d/dx(D dT/dx) + E
+!!
+!! We assume the user is providing the type of boundary conditions and that
+!! any Neumann boundary conditions are interpreted as diffs in state variable
+!! to be solved (this avoids needing solvers to have to do additional calculations
+!! using auxiliary variables not in scope.  
 
 real(wp), dimension(:), intent(in) :: A,B,C,D,E
 real(wp), dimension(:), intent(in) :: Ts
 real(wp), intent(in) :: Tsminx1, Tsmaxx1, dt
+integer, dimension(2), intent(in) :: BCtype  !=0 dirichlet; =1 neumann
 real(wp), dimension(0:), intent(in) :: dx1   !ith backward difference
 real(wp), dimension(:), intent(in) :: dx1i   !ith centered difference
 integer, parameter :: ll=2                   !number of lower diagonals
@@ -57,10 +63,17 @@ Dh(2:lx1)=0.5*(D(1:lx1-1)+D(2:lx1))         !ith left cell wall thermal conducti
 ! ZZZ - check whether diriclet or neumann...
 !> MINX1 BOUNDARY (DIRICHLET)
 ix1=1
-M(ll+3,ix1)=1
-M(ll+2,ix1+1)=0
-M(ll+1,ix1+2)=0
-TR(ix1)=Tsminx1
+if (BCtype(1)==0) then
+  M(ll+3,ix1)=1
+  M(ll+2,ix1+1)=0
+  M(ll+1,ix1+2)=0
+  TR(ix1)=Tsminx1
+else
+  M(ll+3,ix1)=1
+  M(ll+2,ix1+1)=-1
+  M(ll+1,ix1+2)=0
+  TR(ix1)=Tsminx1 !used to be 0, but we change it since we are doing the difference. 
+end if
 
 
 !> FIRST INTERIOR GRID POINT
@@ -129,10 +142,17 @@ TR(ix1)=Ts(ix1)/(dt/2)+E(ix1) &
 ! ZZZ - check whether dirichlet or neumann...
 !> MAXX1 BOUNDARY
 ix1=lx1
-M(ll+5,ix1-2)=0
-M(ll+4,ix1-1)=0
-M(ll+3,ix1)=1
-TR(ix1)=Tsmaxx1
+if (BCtype(2)==0) then
+  M(ll+5,ix1-2)=0
+  M(ll+4,ix1-1)=0
+  M(ll+3,ix1)=1
+  TR(ix1)=Tsmaxx1
+else
+  M(ll+5,ix1-2)=0
+  M(ll+4,ix1-1)=-1
+  M(ll+3,ix1)=1
+  TR(ix1)=Tsmaxx1
+end if
 
 
 !! ### TR HALF STEP MATRIX SOLUTION:  CALL LAPACK'S BANDED SOLVER
@@ -147,10 +167,17 @@ call gbsv(M,TR,kl=2)
 !ZZZ - check whether D or N
 !> MINX1 BOUNDARY (DIRICHLET)
 ix1=1
-M(ll+3,ix1)=1
-M(ll+2,ix1+1)=0
-M(ll+1,ix1+2)=0
-TRBDF21D(ix1)=Tsminx1
+if (BCtype(1)==0) then
+  M(ll+3,ix1)=1
+  M(ll+2,ix1+1)=0
+  M(ll+1,ix1+2)=0
+  TRBDF21D(ix1)=Tsminx1
+else
+  M(ll+3,ix1)=1
+  M(ll+2,ix1+1)=-1
+  M(ll+1,ix1+2)=0
+  TRBDF21D(ix1)=Tsminx1
+end if
 
 
 !> FIRST INTERIOR GRID POINT
@@ -202,10 +229,17 @@ TRBDF21D(ix1)=E(ix1) &
 !check whether D or N
 !> MAXX1 BOUNDARY
 ix1=lx1
-M(ll+5,ix1-2)=0
-M(ll+4,ix1-1)=0
-M(ll+3,ix1)=1
-TRBDF21D(ix1)=Tsmaxx1
+if (BCtype(2)==0) then
+  M(ll+5,ix1-2)=0
+  M(ll+4,ix1-1)=0
+  M(ll+3,ix1)=1
+  TRBDF21D(ix1)=Tsmaxx1
+else
+  M(ll+5,ix1-2)=0
+  M(ll+4,ix1-1)=-1
+  M(ll+3,ix1)=1
+  TRBDF21D(ix1)=Tsmaxx1
+end if
 
 
 !! ## BDF2 STEP MATRIX SOLUTION:  CALL LAPACK'S BANDED SOLVER
@@ -216,7 +250,7 @@ call gbsv(M,TRBDF21D,kl=2)
 end function TRBDF21D
 
 
-function backEuler1D(Ts,A,B,C,D,E,Tsminx1,Tsmaxx1,dt,dx1,dx1i,coeffs,rhs)
+function backEuler1D(Ts,A,B,C,D,E,Tsminx1,Tsmaxx1,dt,BCtype,dx1,dx1i,coeffs,rhs)
 
 !------------------------------------------------------------
 !-------SOLVE A 1D DIFFUSION PROBLEM.  IT IS EXPECTED THAT
@@ -229,6 +263,7 @@ function backEuler1D(Ts,A,B,C,D,E,Tsminx1,Tsmaxx1,dt,dx1,dx1i,coeffs,rhs)
 real(wp), dimension(:), intent(in) :: A,B,C,D,E
 real(wp), dimension(:), intent(in) :: Ts
 real(wp), intent(in) :: Tsminx1, Tsmaxx1, dt
+integer, dimension(2), intent(in) :: BCtype
 real(wp), dimension(0:), intent(in) :: dx1   !ith backward difference
 real(wp), dimension(:), intent(in) :: dx1i   !ith centered difference
 real(wp), dimension(:,:), intent(inout), optional :: coeffs
@@ -254,19 +289,17 @@ backEuler1D(:)=Ts(:)/dt+E(:)                !boundaries to be overwritten later.
 ! check whether D or N
 !> MINX1 BOUNDARY, Dirichlet BCS
 ix1=1
-M(ll+3,ix1)=1       !main diagonal denoted temperature at this grid point... 1*Ts,i=Tsminx1
-M(ll+2,ix1+1)=0     !1st super diagonal
-M(ll+1,ix1+2)=0     !2nd super diagonal
-backEuler1D(ix1)=Tsminx1
-
-!! if Neumann version, use a 1st order forward...
-!ix1=1
-!M(ll+3,ix1)=-1/dx1(ix1+1)       !main diagonal denoted temperature at this grid point... 1*Ts,i=Tsminx1
-!M(ll+2,ix1+1)=1/dx1(ix1+1)      !1st super diagonal
-!M(ll+1,ix1+2)=0                 !2nd super diagonal
-!backEuler1D(ix1)=Tsminx1          !here this is not interpreted as temperature, but instead the -heat flux divided by thermal conductivity
-!
-
+if (BCtype(1)==0) then
+  M(ll+3,ix1)=1       !main diagonal denoted temperature at this grid point... 1*Ts,i=Tsminx1
+  M(ll+2,ix1+1)=0     !1st super diagonal
+  M(ll+1,ix1+2)=0     !2nd super diagonal
+  backEuler1D(ix1)=Tsminx1
+else
+  M(ll+3,ix1)=1       !main diagonal denoted temperature at this grid point... 1*Ts,i=Tsminx1
+  M(ll+2,ix1+1)=-1    !1st super diagonal
+  M(ll+1,ix1+2)=0     !2nd super diagonal
+  backEuler1D(ix1)=0
+end if
 
 !> FIRST INTERIOR GRID POINT
 ix1=2
@@ -310,18 +343,17 @@ M(ll+2,ix1+1)=-C(ix1)*Dh(ix1+1)/dx1i(ix1)/dx1(ix1+1) &        !ix1+1, super-diag
 ! check whether D or N
 !> MAXX1 BOUNDARY
 ix1=lx1
-M(ll+5,ix1-2)=0
-M(ll+4,ix1-1)=0
-M(ll+3,ix1)=1
-backEuler1D(ix1)=Tsmaxx1
-!
-!!Neumann conditions...
-!ix1=lx1
-!M(ll+5,ix1-2)=0            !superdiagonal
-!M(ll+4,ix1-1)=-1/dx1(ix1)            !subdiagonal
-!M(ll+3,ix1)=1/dx1(ix1)              !main diag.
-!backEuler1D(ix1)=Tsmaxx1     !here interpreted as -heat flux divided by thermal conductivity...
-!
+if (BCtype(2)==0) then
+  M(ll+5,ix1-2)=0
+  M(ll+4,ix1-1)=0
+  M(ll+3,ix1)=1
+  backEuler1D(ix1)=Tsmaxx1
+else
+  M(ll+5,ix1-2)=0
+  M(ll+4,ix1-1)=-1
+  M(ll+3,ix1)=1
+  backEuler1D(ix1)=0
+end if
 
 !> in case we want to output the right-hand side of the system; has to be done here before
 !   the output argument (which stores rhs) is overwritten by the solution.

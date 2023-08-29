@@ -74,8 +74,9 @@ do it=1,lt
   C(:)=1
   D(:)=lambda(:)
   E(:)=0.0
-  TsEuler(1:lx1)=backEuler1D(TsEuler(1:lx1),A,B,C,D,E,Tsminx1,Tsmaxx1,dt,dx1,dx1i,coeffs=abc,rhs=y)
-  TsBDF2(1:lx1)=TRBDF21D(TsBDF2(1:lx1),A,B,C,D,E,Tsminx1,Tsmaxx1,dt,dx1,dx1i)
+  
+  TsEuler(1:lx1)=backEuler1D(TsEuler(1:lx1),A,B,C,D,E,Tsminx1,Tsmaxx1,dt,[0,0],dx1,dx1i,coeffs=abc,rhs=y)
+  TsBDF2(1:lx1)=TRBDF21D(TsBDF2(1:lx1),A,B,C,D,E,Tsminx1,Tsmaxx1,dt,[0,0],dx1,dx1i)
   t=t+dt
 
   !compute analytical solution to compare

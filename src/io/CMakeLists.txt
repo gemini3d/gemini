@@ -10,7 +10,7 @@ add_library(errors OBJECT error_stop.f90)
 target_link_libraries(errors PRIVATE const h5fortran::h5fortran)
 
 # --- config
-add_library(gemini3d_config OBJECT config.f90 config_nml.f90 config_ini.f90)
+add_library(gemini3d_config OBJECT config.f90 config_nml.f90)
 target_link_libraries(gemini3d_config PRIVATE const gemini3d_sysinfo
 ffilesystem::filesystem
 )
@@ -30,14 +30,14 @@ $<TARGET_OBJECTS:grid>
 )
 
 target_link_libraries(io PRIVATE
-calculus gemini3d_config const reader grid mpimod sanity_check timeutils
+calculus gemini3d_config const reader grid mpimod sanity_check timeutils gemini_work_def
 h5fortran::h5fortran
 ffilesystem::filesystem
 )
 
 # --- io_nompi
 add_library(io_nompi OBJECT io_nompi.f90)
-target_link_libraries(io_nompi PRIVATE grid interp const timeutils reader 
+target_link_libraries(io_nompi PRIVATE grid interp const timeutils reader
 h5fortran::h5fortran
 ffilesystem::filesystem
 )

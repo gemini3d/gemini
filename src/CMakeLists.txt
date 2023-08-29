@@ -12,7 +12,7 @@ add_subdirectory(io)
 add_subdirectory(temporal)
 
 add_library(collision OBJECT collisions/collisions.f90)
-target_link_libraries(collision PRIVATE const gemini3d_config)
+target_link_libraries(collision PRIVATE const gemini3d_config meshobj)
 
 # --- other libs
 
@@ -27,6 +27,10 @@ $<TARGET_OBJECTS:grid>
 target_link_libraries(multifluid PRIVATE
 advec calculus collision const diffusion meshobj precipdata ionization precipBCs sources timeutils gemini3d_config
 )
+
+add_library(gemini_work_def OBJECT intvars/gemini_work_def.f90)
+target_link_libraries(gemini_work_def PRIVATE const inputdata neutral precipdata efielddata
+	neutraldata neutraldata3D neutraldata3D_fclaw)
 
 add_subdirectory(utils)
 add_subdirectory(inputdata)

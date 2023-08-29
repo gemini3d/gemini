@@ -20,8 +20,10 @@ interface backEuler3D
   module procedure backEuler3D_curv
 end interface backEuler3D
 
+integer, dimension(2), protected :: BCtype=[0,0]
+
 contains
-  pure subroutine diffusion_prep(isp,x,lambda,betacoeff,ns,T,A,B,C,D,E,Tn,Teinf)
+  impure subroutine diffusion_prep(isp,x,lambda,betacoeff,ns,T,A,B,C,D,E,Tn,Teinf)
     !! COMPUTE COEFFICIENTS IN DIFFUSION EQUATIONS AND LOAD UP GHOST CELLS
     !!
     !! Note: done on a per species basis. This is never called over the full grid
@@ -48,6 +50,9 @@ contains
     B(:,:,:)=C(:,:,:)*betacoeff/x%h1(1:lx1,1:lx2,1:lx3)    !beta must be set to zero if not electrons!
     D=lambda*x%h2(1:lx1,1:lx2,1:lx3)*x%h3(1:lx1,1:lx2,1:lx3)/x%h1(1:lx1,1:lx2,1:lx3)
     E=0._wp
+
+    ! Determine what type of boundary conditions we are trying to use
+    call set_BCtype(Teinf,gridflag)
     
     !SET THE BOUNDARY CONDITIONS BASED ON GRID TYPE
     ! if Neumann need to scale heat flux by thermal conductivity and metric factor...
@@ -64,20 +69,58 @@ contains
       do ix3=1,lx3
         do ix2=1,lx2
           Tn0=Tn(lx1,ix2,ix3)
-          T(lx1+1,ix2,ix3)=Tn0   !bottom
-          T(0,ix2,ix3)=Teinf     !top
+          T(lx1+1,ix2,ix3)=Tn0      !bottom
+          if (BCtype(1)==0) then    ! user wants Dirichlet on 'top'
+            T(0,ix2,ix3)=Teinf
+          else                      ! Neumann
+            if (isp==7) then
+              T(0,ix2,ix3)=-Teinf*x%h1(1,ix2,ix3)*x%dx1(2)/lambda(1,ix2,ix3)
+            else
+              T(0,ix2,ix3)=0._wp         
+            end if
+          end if
         end do
       end do
     else                          !non-inverted, standard.  Bottom is logical first element of array...
       do ix3=1,lx3
         do ix2=1,lx2
           Tn0=Tn(1,ix2,ix3)
-          T(0,ix2,ix3)=Tn0          !bottom
-          T(lx1+1,ix2,ix3)=Teinf    !top
+          T(0,ix2,ix3)=Tn0            !bottom
+          if (BCtype(2)==0) then      ! Dirichlet on 'top'
+            T(lx1+1,ix2,ix3)=Teinf
+          else                        ! Neumann
+            if (isp==7) then 
+              T(lx1+1,ix2,ix3)=-Teinf*x%h1(lx1,ix2,ix3)*x%dx1(lx1)/lambda(lx1,ix2,ix3) !top for neumman
+            else
+              T(lx1+1,ix2,ix3)=0._wp
+            end if
+          end if
         end do
       end do
     end if
   end subroutine diffusion_prep
+
+
+  subroutine set_BCtype(Teinf,gridflag)
+    real(wp), intent(in) :: Teinf
+    integer, intent(in) :: gridflag
+
+    if (gridflag==1) then
+      if (Teinf<1.0) then
+        BCtype=[1,0]
+      else
+        BCtype=[0,0]
+      end if
+    else if (gridflag==2) then
+      if (Teinf<1.0) then           
+        BCtype=[0,1]
+      else
+        BCtype=[0,0]
+      end if
+    else
+      BCtype=[0,0]
+    end if
+  end subroutine set_BCtype
   
   
   function backEuler3D_curv(f,A,B,C,D,E,dt,x)
@@ -104,7 +147,7 @@ contains
         fx1slice=f(1:lx1,ix2,ix3)
         fx1slice=backEuler1D(fx1slice,A(:,ix2,ix3), &
                       B(:,ix2,ix3),C(:,ix2,ix3),D(:,ix2,ix3),E(:,ix2,ix3), &
-                      f(0,ix2,ix3),f(lx1+1,ix2,ix3),dt,x%dx1,x%dx1i)
+                      f(0,ix2,ix3),f(lx1+1,ix2,ix3),dt,BCtype,x%dx1,x%dx1i)
         !! inner ghost cells include boundary conditions
         backEuler3D_curv(1:lx1,ix2,ix3)=fx1slice
       end do
@@ -144,7 +187,7 @@ contains
         fx1slice=f(1:lx1,ix2,ix3)
         fx1slice=TRBDF21D(fx1slice,A(:,ix2,ix3), &
                       B(:,ix2,ix3),C(:,ix2,ix3),D(:,ix2,ix3),E(:,ix2,ix3), &
-                      f(0,ix2,ix3),f(lx1+1,ix2,ix3),dt,x%dx1,x%dx1i)
+                      f(0,ix2,ix3),f(lx1+1,ix2,ix3),dt,BCtype,x%dx1,x%dx1i)
         !! inner ghost cells include boundary conditions
         TRBDF23D_curv(1:lx1,ix2,ix3)=fx1slice
       end do

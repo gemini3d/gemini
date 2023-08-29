@@ -3,7 +3,7 @@ submodule(gemini3d_config) config_nml
 use, intrinsic :: iso_fortran_env, only : stderr => error_unit
 
 use gemini3d_sysinfo, only : expand_envvar, get_compiler_vendor
-use filesystem, only : make_absolute
+use filesystem, only : make_absolute, suffix
 
 implicit none (type, external)
 
@@ -52,6 +52,9 @@ logical :: flaglagrangian
 logical :: flagdiamagnetic
 logical :: flagnodivJ0
 
+integer :: flagFBI
+integer :: flagevibcool
+
 namelist /base/ ymd, UTsec0, tdur, dtout, activ, tcfl, Teinf
 namelist /files/ file_format, indat_size, indat_grid, indat_file
 namelist /flags/ potsolve, flagperiodic, flagoutput
@@ -64,13 +67,16 @@ namelist /EIA/ flagEIA,v0equator
 namelist /neutral_BG/ flagneuBG,dtneuBG, msis_version
 namelist /precip_BG/ PhiWBG,W0BG
 namelist /Jpar/ flagJpar
-namelist /capacitance/ flagcap,magcap     ! later need to regroup these in a way that is more logical now there are so many more inputs
+namelist /capacitance/ flagcap,magcap
+!! later need to regroup these in a way that is more logical now there are so many more inputs
 namelist /diffusion/ diffsolvetype
 namelist /milestone/ mcadence
 namelist /gravdrift/ flaggravdrift
 namelist /lagrangian/ flaglagrangian
 namelist /diamagnetic/ flagdiamagnetic
 namelist /nodivJ0/ flagnodivJ0
+namelist /FBI/ flagFBI
+namelist /evibcool/ flagevibcool
 
 if(.not. allocated(cfg%outdir)) error stop 'gemini3d:config:config_nml please specify simulation output directory'
 if(.not. allocated(cfg%infile)) error stop 'gemini3d:config:config_nml please specify simulation configuration file config.nml'
@@ -184,7 +190,7 @@ else
   cfg%flagEIA=.false.
 end if
 
-!> neural background (optional)
+!> neutral background (optional)
 if (namelist_exists(u,'neutral_BG')) then
   rewind(u)
   read(u, nml=neutral_BG, iostat=i)
@@ -289,6 +295,25 @@ else
   cfg%flagnodivJ0=.false.
 end if
 
+if (namelist_exists(u, 'FBI')) then
+  rewind(u)
+  read(u, nml=FBI, iostat=i)
+  call check_nml_io(i, cfg%infile, "FBI")
+  cfg%flagFBI = flagFBI
+else
+  cfg%flagFBI = 0
+endif
+
+if (namelist_exists(u, 'evibcool')) then
+  rewind(u)
+  read(u, nml=evibcool, iostat=i)
+  call check_nml_io(i, cfg%infile, "evibcool")
+  cfg%flagevibcool = flagevibcool
+else
+  cfg%flagevibcool = 1
+endif
+
+!> close config.nml file handle
 close(u)
 
 end procedure read_nml
@@ -297,8 +322,8 @@ end procedure read_nml
 logical function namelist_exists(u, nml, verbose)
 !! determines if Namelist exists in file
 
-character(*), intent(in) :: nml    ! FIXME:  is it bad to use a keyword as a variable name?
-integer, intent(in) :: u
+character(*), intent(in) :: nml
+integer, intent(in) :: u  !< Fortran file unit
 logical, intent(in), optional :: verbose
 
 logical :: debug

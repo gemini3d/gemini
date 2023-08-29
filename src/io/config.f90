@@ -1,6 +1,5 @@
 module gemini3d_config
 
-use filesystem, only : suffix
 use phys_consts, only : wp
 
 implicit none (type, external)
@@ -86,6 +85,18 @@ type :: gemini_cfg
 
   !> is the background current assumed to be divergence free?
   logical :: flagnodivJ0 = .false.
+
+  !> Farley-Buneman instability
+  integer :: flagFBI = 0
+  !! default: 0, which does not run FBI model.
+  !! 1: turn on only abnormal heating
+  !! 2: abnormal heating and non-linear current
+
+  !> electron rotational and vibrational cooling
+  integer :: flagevibcool = 1
+  !! default: 1, use new model
+  !! 0: use old model
+
 end type gemini_cfg
 
 interface
@@ -93,9 +104,6 @@ interface
     class(gemini_cfg), intent(inout) :: cfg
     logical, intent(in), optional :: verbose
   end subroutine read_nml
-  module subroutine read_ini(cfg)
-    class(gemini_cfg), intent(inout) :: cfg
-  end subroutine read_ini
 end interface
 
 contains
@@ -104,18 +112,7 @@ contains
     class(gemini_cfg), intent(inout) :: cfg
     logical, intent(in), optional :: verbose
 
-    !> READ CONFIG FILE FOR THIS SIMULATION
-    !! NOTE: Namelist file groups must be read in order they appear in the Namelist file, or End of File error occurs
-
-    select case (suffix(cfg%infile))
-    case ('.nml')
-      call read_nml(cfg, verbose)
-    case ('.ini')
-      call read_ini(cfg)
-    case default
-      error stop 'ERROR:gemini3d:config: not sure how to read Gemini3D configuration file: ' // cfg%infile
-    end select
-
+    call read_nml(cfg, verbose)
   end subroutine read_configfile
 
 end module gemini3d_config

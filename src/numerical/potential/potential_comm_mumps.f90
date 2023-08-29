@@ -9,10 +9,11 @@ module potential_comm
 use, intrinsic :: ieee_arithmetic
 
 use phys_consts, only: wp, pi, lsp, debug, ms, qs, kB
+use gemini_work_def, only: gemini_work
 use grid, only: gridflag, lx1,lx2,lx3,lx2all,lx3all
 use meshobj, only: curvmesh
 use efielddataobj, only: efielddata
-use collisions, only: conductivities, capacitance
+use collisions, only: conductivities, capacitance, NLConductivity
 use calculus, only: div3d, integral3d1, grad3d1, grad3d2, grad3d3, integral3d1_curv_alt
 use potentialBCs_mumps, only: potentialbcs2D, potentialbcs2D_fileinput, compute_rootBGEfields
 use potential_mumps, only: potential3D_fieldresolved_decimate, &
@@ -107,7 +108,7 @@ end interface
 
 contains
   subroutine electrodynamics_curv(it,t,dt,nn,vn2,vn3,Tn,cfg,ns,Ts,vs1,B1,vs2,vs3,x,efield, &
-                           E1,E2,E3,J1,J2,J3,Phiall,ymd,UTsec)
+                           E1,E2,E3,J1,J2,J3,Phiall,ymd,UTsec,intvars)
     !! THIS IS A WRAPPER FUNCTION FOR THE ELECTRODYANMICS
     !! PART OF THE MODEL.  BOTH THE ROOT AND WORKER PROCESSES
     !! CALL THIS SAME SUBROUTINE, WHEN THEN BRANCHES INTO
@@ -133,9 +134,11 @@ contains
     !! inout since it may not be allocated or deallocated in this procedure
     integer, dimension(3), intent(in) :: ymd
     real(wp), intent(in) :: UTsec
-    real(wp), dimension(1:lx1,1:lx2,1:lx3) :: sig0,sigP,sigH,sigPgrav,sigHgrav
+    type(gemini_work), intent(inout) :: intvars
+    real(wp), dimension(1:lx1,1:lx2,1:lx3) :: sig0,sigPgrav,sigHgrav
     real(wp), dimension(1:lx1,1:lx2,1:lx3,1:lsp) :: muP,muH,nusn
     real(wp), dimension(1:lx1,1:lx2,1:lx3) :: incap
+    real(wp), dimension(:,:,:), pointer :: sigP,sigH
     real(wp) :: tstart,tfin
     real(wp) :: minh1,maxh1,minh2,maxh2,minh3,maxh3
     ! background variables and boundary conditions, full grid sized variables
@@ -146,11 +149,20 @@ contains
     real(wp), dimension(1:lx1,1:lx2,1:lx3) :: E01,E02,E03,E02src,E03src
     integer :: flagdirich
     real(wp), dimension(1:lx2,1:lx3) :: Vminx1slab,Vmaxx1slab
+    real(wp), dimension(1:lx1,1:lx2,1:lx3) :: sigNCP,sigNCH
 
+
+    !> convenience aliases
+    sigP=>intvars%sigP; sigH=>intvars%sigH    ! this is the "global" version of conductivity
 
     !> update conductivities and mobilities
     call cpu_time(tstart)
     call conductivities(nn,Tn,ns,Ts,vs1,B1,sig0,sigP,sigH,muP,muH,nusn,sigPgrav,sigHgrav)
+    if (cfg%flagFBI>1) then     ! need to accumulate nonlinear conductivities if user specifies
+      call NLConductivity(nn,Tn,ns,Ts,E2,E3,x,sigP,sigH,sigNCP,sigNCH)
+      sigP=sigP+sigNCP
+      sigH=sigH+sigNCH
+    end if
     call cpu_time(tfin)
     if (mpi_cfg%myid==0) then
       if (cfg%flagcap/=0) then
